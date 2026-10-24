@@ -119,6 +119,10 @@ html:has(body.globe-page) { height: 100%; overflow: hidden; }
 .popover .chan { display: flex; gap: 8px; padding: 6px 4px 2px; flex-wrap: wrap; }
 .popover .chan a { min-height: 40px; padding: 6px 12px; font-size: 14px; background: #fff; box-shadow: 0 2px 0 var(--cream-edge); }
 .popover hr { border: 0; border-top: 2px dashed #e6cfa8; margin: 6px 4px; }
+.popover .about-text { max-width: 300px; margin: 4px 8px 8px; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--ink); }
+/* меню «О караване» с абзацем: на низком экране (повёрнутый телефон) прокручивается и лежит поверх круглых кнопок */
+#info.popover { max-height: calc(100vh - 90px); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }
+.gh:has(#info.open) { z-index: 45; }
 
 .controls { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 20; }
 .styles-wrap { position: relative; }
@@ -257,6 +261,7 @@ main.content { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; }
 .tale-meta { margin: 0 0 12px; font-weight: 800; color: var(--ink-soft); font-size: 16px; }
 .tale-stop { margin: 0 0 10px; font-weight: 700; font-style: italic; color: var(--ink-soft); }
 .tale-meta2 { color: var(--ink-soft); font-weight: 700; }
+.tale-aka { color: var(--ink-soft); font-weight: 700; margin-top: -4px; }
 .lead { font-size: 19px; line-height: 1.5; font-weight: 600; margin: 0 0 16px; }
 .box { background: var(--cream); border-radius: 22px; padding: 18px 20px; box-shadow: var(--plaque-shadow); margin: 18px 0; }
 .box h2 { margin: 0 0 8px; font-size: 20px; font-weight: 900; }
