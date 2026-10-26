@@ -123,6 +123,22 @@ html:has(body.globe-page) { height: 100%; overflow: hidden; }
 /* меню «О караване» с абзацем: на низком экране (повёрнутый телефон) прокручивается и лежит поверх круглых кнопок */
 #info.popover { max-height: calc(100vh - 90px); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }
 .gh:has(#info.open) { z-index: 45; }
+/* счётчик посещений: плашка согласия и кнопка «Статистика посещений» */
+.schet { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(540px, calc(100vw - 20px)); padding: 12px 14px; z-index: 44; color: var(--ink); }
+.schet[hidden] { display: none; }
+.schet:focus { outline: 3px solid var(--ink); outline-offset: 2px; }
+.globe-page .schet { bottom: 84px; }
+/* на телефоне кнопки глобуса внизу, на повёрнутом — справа: плашка встаёт под шапку и их не закрывает */
+@media (max-width: 700px) { .globe-page .schet { bottom: auto; top: 72px; } }
+@media (max-height: 500px) { .globe-page .schet { bottom: auto; top: 80px; left: 10px; right: 76px; width: auto; transform: none; } }
+.schet p { margin: 0 0 10px; font-size: 15px; line-height: 1.35; font-weight: 700; }
+@media (max-width: 700px), (max-height: 500px) { .schet p { font-size: 14px; } }
+.schet-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.schet-btns .btn { min-height: 44px; }
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
+.popover .link-btn { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 8px 14px; border-radius: 14px; font-weight: 800; color: var(--ink); text-decoration: none; text-align: left; }
+.popover .link-btn:hover { background: #fde9c4; }
+.schet-link { margin-top: 8px; }
 
 .controls { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 20; }
 .styles-wrap { position: relative; }
