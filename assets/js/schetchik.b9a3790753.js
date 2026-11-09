@@ -21,35 +21,16 @@
   function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
   function set(v) { try { localStorage.setItem(KEY, v); } catch (e) { /* без хранилища спросим снова на следующей странице */ } }
 
-  /* С 09.11.2026 (слово владельца «Все пять», Скорость_сайта_предложения_2026-11-09.md, П5) сама программа Метрики
-     (tag.js, 87 КБ) скачивается не сразу, а когда шар глобуса уже нарисован (событие tc-globe-ready из globe.js),
-     на остальных страницах — после загрузки страницы. Очередь вызовов ym заводится сразу: запуск сказки,
-     случившийся раньше, ждёт в очереди и уходит, когда tag.js придёт. Если шар так и не нарисовался — через 15 с. */
-  var tagAdded = false;
-  function addTag() {
-    if (tagAdded) return;
-    tagAdded = true;
-    var k = document.createElement('script'), a = document.getElementsByTagName('script')[0];
-    k.async = 1; k.src = 'https://mc.yandex.ru/metrika/tag.js'; a.parentNode.insertBefore(k, a);
-  }
-  function addTagLater() {
-    var globe = document.getElementById('globe-root');
-    if (globe) {
-      if (globe.dataset.ready === '1') { addTag(); return; }
-      document.addEventListener('tc-globe-ready', addTag);
-    } else if (document.readyState === 'complete') { addTag(); return; }
-    else window.addEventListener('load', addTag);
-    setTimeout(addTag, 15000);
-  }
-
   function start() {
     if (started) return;
     started = true;
-    // код вставки — справка Метрики «Инициализация счётчика» (очередь ym и init); Вебвизор и карта кликов выключены
-    window.ym = window.ym || function () { (window.ym.a = window.ym.a || []).push(arguments); };
-    window.ym.l = 1 * new Date();
+    // код вставки — справка Метрики «Инициализация счётчика»; Вебвизор и карта кликов выключены
+    (function (m, e, t, r, i, k, a) {
+      m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
+      m[i].l = 1 * new Date(); k = e.createElement(t); a = e.getElementsByTagName(t)[0];
+      k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
+    })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
     window.ym(ID, 'init', { clickmap: false, trackLinks: true, accurateTrackBounce: true, webvisor: false });
-    addTagLater();
   }
 
   function forget() {

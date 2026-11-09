@@ -20,22 +20,14 @@
   var last = TALES[TALES.length - 1];
   var st = {
     rot: [-last.ll[0], -last.ll[1], 0], zk: 1, theme: D.theme, spin: !reduced,
-    open: null, dragging: false, flying: false, spinning: false, lastInteract: 0,
+    open: null, dragging: false, flying: false, lastInteract: 0,
     W: 0, H: 0, cx: 0, cy: 0, base: 1, plaques: []
   };
 
-  var proj, path, g = {}, lo, hi, hiLoading = false, curSet, landLo, landCur, regions = [], lakes = [], riversLo, riversHi;
+  var proj, path, g = {}, lo, hi, hiLoading = false, curSet, landAll, regions = [], lakes = [], riversLo, riversHi;
   var markers = [], player = null, opener = null;
 
   function th() { return THEMES[st.theme] || THEMES.clay; }
-  /* Глобус в движении (сам крутится, его тянут или он летит к стране) рисуется по простой карте:
-     подробная карта стран в 9 раз дороже на каждом кадре (замер 09.11.2026, Скорость_сайта_предложения_2026-11-09.md, П1).
-     Остановился — дорисовывается подробная. */
-  function moving() { return st.dragging || st.flying || st.spinning || !!g.zt; }
-  // Подробный вид — не сразу после остановки, а через 0,3 с: касание останавливает вращение,
-  // и через миг шар уже тянут — без этой паузы карта переключалась бы туда и обратно.
-  var settleT = null;
-  function settle() { clearTimeout(settleT); settleT = setTimeout(function () { if (!moving()) render(); }, 300); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   /* ---------- Контраст (раздел 14): цвет серии темнеет, пока на кремовом фоне не станет 4,5:1 ---------- */
@@ -106,9 +98,9 @@
   }
 
   function buildCountries(force) {
-    var set = hi && st.zk >= 2 && !moving() ? hi : lo;
+    var set = hi && st.zk >= 2 ? hi : lo;
     if (!set || (!force && curSet === set)) return;
-    curSet = set; landCur = set === lo ? landLo : { type: 'FeatureCollection', features: set };
+    curSet = set; landAll = { type: 'FeatureCollection', features: set };
     var t = th(), R = t.relief;
     var taleBy = new Map(TALES.map(function (x) { return [x.iso, x]; }));
     var soonIso = SOON ? SOON.iso : null;
@@ -211,17 +203,11 @@
   }
 
   function render() {
-    if (!proj || !st.W) return;
-    buildCountries();                    // в движении — простая карта, в покое при приближении — подробная
-    if (!curSet) return;
+    if (!proj || !st.W || !curSet) return;
     var r = st.base * st.zk, t = th();
     proj.scale(r).translate([st.cx, st.cy]).rotate(st.rot);
-    // Облегчённый вид — без фильтра суши: пока шар тянут или он летит (при приближении и на телефоне),
-    // а на телефоне и пока он крутится сам (П3, слово владельца 09.11.2026 «Все пять»).
-    var low = ((st.dragging || st.flying) && (st.zk > 2 || touchDevice)) || (st.spinning && touchDevice);
+    var low = (st.dragging || st.flying) && (st.zk > 2 || touchDevice);
     g.land.attr('filter', low ? null : t.land);
-    g.sea.attr('filter', low ? null : t.seaF);       // фактура моря пересчитывается под каждым кадром суши — тоже снять
-    root.dataset.lite = low ? '1' : '0';
     g.shadow.attr('cx', st.cx).attr('cy', st.cy + r * 1.02).attr('rx', r * 0.82).attr('ry', r * 0.12).attr('opacity', st.zk > 1.6 ? 0 : t.shadow);
     g.sea.attr('cx', st.cx).attr('cy', st.cy).attr('r', r);
     g.shade.attr('cx', st.cx).attr('cy', st.cy).attr('r', r);
@@ -231,15 +217,10 @@
     g.reliefSel.attr('d', path);
     g.taleSel.attr('d', path);
     g.lakeSel.attr('d', path);
-    var rv = st.zk >= 2.2 && !moving() ? riversHi : riversLo;
+    var rv = st.zk >= 2.2 ? riversHi : riversLo;
     g.riverSel.attr('d', rv ? path(rv) : null).attr('stroke-width', Math.min(4, 1.1 + 0.35 * st.zk));
-    // «Волна» у берега — по той же карте, что и страны: в движении по простой, в покое при приближении по подробной
-    // (иначе мелкие острова теряют светлый ободок, приёмка 09.11.2026). В облегчённом виде её нет:
-    // её контур стоит столько же, сколько вся карта стран (замер 09.11.2026).
-    g.rip.attr('display', low ? 'none' : null);
-    if (!low) g.ripple.attr('d', path(landCur));
+    g.ripple.attr('d', path(landAll));
     g.routeSel.attr('d', path);
-    root.dataset.map = curSet === hi ? 'hi' : 'lo';
     root.dataset.zoom = st.zk.toFixed(4);
     root.dataset.center = (-st.rot[0]).toFixed(3) + ',' + (-st.rot[1]).toFixed(3);
     root.dataset.radius = r.toFixed(2);
@@ -421,7 +402,7 @@
     g.zt = d3.timer(function (el) {
       var k = d3.easeCubicOut(Math.min(1, el / 350));
       setZoom(z0 * Math.pow(z1 / z0, k));
-      if (k >= 1) { g.zt.stop(); g.zt = null; render(); }
+      if (k >= 1) { g.zt.stop(); g.zt = null; }
     });
   }
 
@@ -499,8 +480,7 @@
     d3.timer(function (now) {
       var dt = now - prevT; prevT = now;
       var idle = !st.dragging && !st.flying && st.open == null && Date.now() - st.lastInteract > 2500;
-      if (st.spin && idle && !document.hidden) { st.spinning = true; st.rot[0] += dt * 0.006 / Math.sqrt(st.zk); render(); }
-      else if (st.spinning) { st.spinning = false; settle(); }     // остановился — дорисовать подробный вид
+      if (st.spin && idle && !document.hidden) { st.rot[0] += dt * 0.006 / Math.sqrt(st.zk); render(); }
     });
   }
 
@@ -750,11 +730,9 @@
   }
 
   /* ---------- Запуск ---------- */
-  /* Шар рисуется и кнопки включаются по карте стран (40 КБ); рельеф (облегчённый, relief_lo.json) догружается следом
-     и дорисовывается. Раньше глобус ждал оба файла, а рельеф — больше половины всего, что нужно до появления шара (П2). */
-  getJSON('world-110m.json').then(function (w) {
-    lo = features(w);
-    landLo = { type: 'FeatureCollection', features: lo };
+  Promise.all([getJSON('world-110m.json'), getJSON('relief.json').catch(function () { return null; })]).then(function (res) {
+    lo = features(res[0]);
+    if (res[1]) prepRelief(res[1]);
     wireUi();
     build();
     makeMarkers();
@@ -762,17 +740,11 @@
     new ResizeObserver(function () { layout(); render(); }).observe(root);
     startTimer();
     root.dataset.ready = '1';
-    document.dispatchEvent(new Event('tc-globe-ready'));     // счётчик посещений грузится после этого (schetchik.js, П5)
     if (location.href.indexOf('#') >= 0) {
       var raw = location.hash.slice(1), i = raw ? slugIndex(raw) : -1;
       history.replaceState(null, '', location.pathname + location.search + (i >= 0 ? '#' + TALES[i].slug : ''));
       if (i >= 0) openTale(i, false);
     }
-    getJSON('relief_lo.json').then(function (R) {
-      prepRelief(R);
-      buildCountries(true); render();
-      root.dataset.relief = '1';
-    }).catch(function () { root.dataset.relief = 'error'; });
   }).catch(function (err) {
     root.dataset.ready = 'error';
     if (window.console) console.error('globe:', err);
