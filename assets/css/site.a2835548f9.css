@@ -75,6 +75,8 @@ html:has(body.globe-page) { height: 100%; overflow: hidden; }
 .globe-root { position: fixed; inset: 0; overflow: hidden; transition: background .5s ease; background: radial-gradient(ellipse at 50% 40%, #e3f5fc 0%, #a9dbf2 55%, #7cc3e6 100%); }
 .globe-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; transform-origin: 50% 52%; animation: globein 1.1s cubic-bezier(.3,1.3,.5,1) both; -webkit-tap-highlight-color: transparent; }
 .globe-svg.grabbing { cursor: grabbing; }
+/* маршрут, затенение и обод шара — в своих слоях поверх шара (globe.js, build): бегущий пунктир перерисовывает только свой слой */
+.globe-over { pointer-events: none; will-change: transform; }
 
 .markers { position: absolute; inset: 0; pointer-events: none; z-index: 10; touch-action: none; }
 .markers.labels { z-index: 11; }

@@ -11,6 +11,14 @@
   var mq = function (q) { return window.matchMedia && matchMedia(q).matches; };
   var touchDevice = mq('(pointer: coarse)') || (navigator.maxTouchPoints > 0 && mq('(hover: none)'));
   var reduced = mq('(prefers-reduced-motion: reduce)');
+  /* Телефон и планшет: шар всегда в одном облегчённом виде — без фильтра суши (свет «пластилина» пересчитывается
+     на каждом кадре; в движке Safari с профилем iPhone — модель на Mac — это сотни миллисекунд на кадр, замер 09.11.2026);
+     объём даёт тень под сушей. Вид не меняется ни в движении, ни в покое: первая версия ускорения переключала его,
+     и владелец на iPhone увидел «ландшафт, что возникает, то исчезает, от этого тормозит еще больше» (09.11.2026). */
+  var phoneLook = touchDevice;
+  // Подробная карта стран — с приближения HI_FROM, назад к простой — ниже HI_BACK: щипок около порога не дёргает карту.
+  // От движения карта не зависит (на компьютере — как до 09.11.2026).
+  var HI_FROM = phoneLook ? 4 : 2, HI_BACK = phoneLook ? 3.4 : 2;
 
   var $ = function (id) { return document.getElementById(id); };
   var root = $('globe-root'), svgEl = $('globe-svg'), layer = $('markers'), labels = $('marker-labels');
@@ -24,7 +32,7 @@
     W: 0, H: 0, cx: 0, cy: 0, base: 1, plaques: []
   };
 
-  var proj, path, g = {}, lo, hi, hiLoading = false, curSet, landAll, regions = [], lakes = [], riversLo, riversHi;
+  var proj, path, g = {}, lo, hi, hiLoading = false, curSet, landLo, landCur, regions = [], lakes = [], riversLo, riversHi;
   var markers = [], player = null, opener = null;
 
   function th() { return THEMES[st.theme] || THEMES.clay; }
@@ -76,6 +84,13 @@
   /* ---------- Рисунок шара ---------- */
   function build() {
     var svg = d3.select(svgEl); svg.selectAll('*').remove();
+    /* Маршрут, затенение и обод — в своих слоях поверх шара (тот же порядок, что был внутри шара). Бегущий пунктир
+       маршрута перерисовывает только свой слой: внутри шара он заставлял перерисовывать весь шар 60 раз в секунду
+       и в покое (движок Safari с профилем iPhone, модель на Mac: в покое 6–8 кадров в секунду вместо 60; замер 09.11.2026,
+       proverki/zamery_safari_2026-11-09/zamer_safari_itog.jsonl — 6,0–6,3 под чужой нагрузкой). */
+    var svgR = $('globe-route') ? d3.select($('globe-route')) : svg, svgT = $('globe-top') ? d3.select($('globe-top')) : svg;
+    if (svgR.node() !== svgEl) svgR.selectAll('*').remove();
+    if (svgT.node() !== svgEl) svgT.selectAll('*').remove();
     svg.append('defs').html(DEFS);
     proj = d3.geoOrthographic().clipAngle(90).precision(0.4);
     path = d3.geoPath(proj);
@@ -83,24 +98,28 @@
     g.shadow = svg.append('ellipse').attr('fill', '#0f3a5c').attr('opacity', 0.28).attr('filter', 'url(#soft)');
     g.sea = svg.append('circle').attr('class', 'sea');
     g.grat = svg.append('path').attr('class', 'grat').datum(d3.geoGraticule10()).attr('fill', 'none').attr('stroke-width', 1);
-    g.rip = svg.append('g');
-    g.land = svg.append('g');
+    g.rip = svg.append('g').attr('class', 'rip');
+    // тень под сушей — объём на телефоне вместо фильтра (на компьютере её даёт фильтр суши)
+    g.lshadow = svg.append('path').attr('class', 'lshadow').attr('fill', '#0f3a5c').attr('fill-opacity', 0.3)
+      .attr('transform', 'translate(0,2.5)').attr('pointer-events', 'none').attr('display', phoneLook ? null : 'none');
+    g.land = svg.append('g').attr('class', 'land');
     g.countries = g.land.append('g');
     g.relief = g.land.append('g');
     g.tale = g.land.append('g');
     g.water = g.land.append('g');
-    g.route = svg.append('g').attr('class', 'route').attr('filter', 'url(#rope)');
-    g.shade = svg.append('circle').attr('fill', 'url(#shade)').attr('pointer-events', 'none');
-    g.rim = svg.append('circle').attr('fill', 'none').attr('pointer-events', 'none');
+    // тень пунктира — фильтр; в движке Safari с профилем iPhone он стоил треть кадра во вращении (замер 09.11.2026) — на телефоне пунктир без тени
+    g.route = svgR.append('g').attr('class', 'route').attr('filter', phoneLook ? null : 'url(#rope)');
+    g.shade = svgT.append('circle').attr('fill', 'url(#shade)').attr('pointer-events', 'none');
+    g.rim = svgT.append('circle').attr('fill', 'none').attr('pointer-events', 'none');
     buildRoute();
     layout();
     applyTheme();
   }
 
   function buildCountries(force) {
-    var set = hi && st.zk >= 2 ? hi : lo;
+    var set = hi && st.zk >= (curSet === hi ? HI_BACK : HI_FROM) ? hi : lo;
     if (!set || (!force && curSet === set)) return;
-    curSet = set; landAll = { type: 'FeatureCollection', features: set };
+    curSet = set; landCur = set === lo ? landLo : { type: 'FeatureCollection', features: set };
     var t = th(), R = t.relief;
     var taleBy = new Map(TALES.map(function (x) { return [x.iso, x]; }));
     var soonIso = SOON ? SOON.iso : null;
@@ -191,7 +210,7 @@
       if (b.width) st.plaques.push({ left: b.left - rb.left, right: b.right - rb.left, bottom: b.bottom - rb.top });
     });
     if (sizeChanged && g.stars) drawStars();
-    if (st.zk >= 2) loadHi();
+    if (st.zk >= HI_FROM) loadHi();
     buildCountries();
   }
 
@@ -203,11 +222,21 @@
   }
 
   function render() {
-    if (!proj || !st.W || !curSet) return;
+    if (!proj || !st.W) return;
+    buildCountries();                    // карта стран — по приближению (подробная с HI_FROM)
+    if (!curSet) return;
     var r = st.base * st.zk, t = th();
     proj.scale(r).translate([st.cx, st.cy]).rotate(st.rot);
-    var low = (st.dragging || st.flying) && (st.zk > 2 || touchDevice);
+    // Облегчённый вид — без фильтра суши: на телефоне всегда; на компьютере — пока шар тянут или он летит
+    // при приближении больше 2, как и до 09.11.2026.
+    var low = phoneLook || ((st.dragging || st.flying) && st.zk > 2);
     g.land.attr('filter', low ? null : t.land);
+    // Фактуры моря на телефоне нет: она пересчитывается целиком, как только шар меняет размер (перелёт к сказке, «+»,
+    // щипок). В движке Safari с профилем iPhone (модель на Mac) перелёт с ней шёл 13–15 кадров в секунду, без неё 29
+    // (замер 09.11.2026, proverki/zamery_safari_2026-11-09/perelyot_s_fakturoy_i_bez.jsonl).
+    g.sea.attr('filter', phoneLook ? null : t.seaF);
+    root.dataset.lite = low ? '1' : '0';
+    root.dataset.look = phoneLook ? 'phone' : 'full';
     g.shadow.attr('cx', st.cx).attr('cy', st.cy + r * 1.02).attr('rx', r * 0.82).attr('ry', r * 0.12).attr('opacity', st.zk > 1.6 ? 0 : t.shadow);
     g.sea.attr('cx', st.cx).attr('cy', st.cy).attr('r', r);
     g.shade.attr('cx', st.cx).attr('cy', st.cy).attr('r', r);
@@ -219,8 +248,12 @@
     g.lakeSel.attr('d', path);
     var rv = st.zk >= 2.2 ? riversHi : riversLo;
     g.riverSel.attr('d', rv ? path(rv) : null).attr('stroke-width', Math.min(4, 1.1 + 0.35 * st.zk));
-    g.ripple.attr('d', path(landAll));
+    // «Волна» у берега и тень под сушей (на телефоне) — по той же карте, что и страны (иначе мелкие острова теряют ободок)
+    var ld = path(landCur);
+    g.ripple.attr('d', ld);
+    if (phoneLook) g.lshadow.attr('d', ld);
     g.routeSel.attr('d', path);
+    root.dataset.map = curSet === hi ? 'hi' : 'lo';
     root.dataset.zoom = st.zk.toFixed(4);
     root.dataset.center = (-st.rot[0]).toFixed(3) + ',' + (-st.rot[1]).toFixed(3);
     root.dataset.radius = r.toFixed(2);
@@ -390,7 +423,7 @@
   function touch() { st.lastInteract = Date.now(); }
   function setZoom(z) {
     st.zk = clamp(z, ZMIN, ZMAX);
-    touch(); if (st.zk >= 2) loadHi();
+    touch(); if (st.zk >= HI_FROM) loadHi();
     buildCountries(); render();
   }
   // Частые нажатия складываются: следующий шаг считается от цели прежнего, а не от текущего кадра.
@@ -462,7 +495,7 @@
     var d = to[0] - from[0]; d = ((d + 540) % 360) - 180; to[0] = from[0] + d;
     var z0 = st.zk, z1 = Math.max(z0, 2.2);
     if (g.fly) g.fly.stop();
-    if (z1 >= 2) loadHi();
+    if (z1 >= HI_FROM) loadHi();
     if (reduced) { st.rot = to; st.zk = z1; st.flying = false; buildCountries(); render(); return; }
     var ir = d3.interpolate(from, to);
     dur = dur || 1300;
@@ -730,21 +763,33 @@
   }
 
   /* ---------- Запуск ---------- */
-  Promise.all([getJSON('world-110m.json'), getJSON('relief.json').catch(function () { return null; })]).then(function (res) {
-    lo = features(res[0]);
-    if (res[1]) prepRelief(res[1]);
+  /* Шар рисуется и кнопки включаются по карте стран (40 КБ); рельеф (облегчённый, relief_lo.json) догружается следом
+     и дорисовывается. Раньше глобус ждал оба файла, а рельеф — больше половины всего, что нужно до появления шара (П2). */
+  var early = window.tcWorld;    // ранний запрос карты стран из шапки страницы (sborka.py); не вышел — обычный
+  (early ? early.then(function (r) { if (!r.ok) throw new Error('world-110m.json'); return r.json(); })
+    .catch(function () { return getJSON('world-110m.json'); }) : getJSON('world-110m.json')).then(function (w) {
+    lo = features(w);
+    landLo = { type: 'FeatureCollection', features: lo };
     wireUi();
     build();
     makeMarkers();
     render();
-    new ResizeObserver(function () { layout(); render(); }).observe(root);
+    // шар появляется раньше, чем полоса героев и шапка встают на место: их перемещение тоже перекладывает шар
+    var relay = new ResizeObserver(function () { layout(); render(); });
+    [root, header, strip].forEach(function (n) { if (n) relay.observe(n); });
     startTimer();
     root.dataset.ready = '1';
+    document.dispatchEvent(new Event('tc-globe-ready'));     // счётчик посещений грузится после этого (schetchik.js, П5)
     if (location.href.indexOf('#') >= 0) {
       var raw = location.hash.slice(1), i = raw ? slugIndex(raw) : -1;
       history.replaceState(null, '', location.pathname + location.search + (i >= 0 ? '#' + TALES[i].slug : ''));
       if (i >= 0) openTale(i, false);
     }
+    getJSON('relief_lo.json').then(function (R) {
+      prepRelief(R);
+      buildCountries(true); render();
+      root.dataset.relief = '1';
+    }).catch(function () { root.dataset.relief = 'error'; });
   }).catch(function (err) {
     root.dataset.ready = 'error';
     if (window.console) console.error('globe:', err);
