@@ -286,6 +286,10 @@ main.content { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; }
 .box p { margin: 0 0 8px; font-size: 16px; line-height: 1.5; font-weight: 600; }
 .box p:last-child { margin-bottom: 0; }
 .box .source { font-size: 15px; color: var(--ink-soft); }
+.tale-story { margin: 28px 0 20px; }
+.tale-story h2 { margin: 0 0 12px; font-size: 24px; line-height: 1.15; font-weight: 900; }
+.tale-story p { margin: 0 0 14px; font-size: 17px; line-height: 1.62; font-weight: 500; max-width: 68ch; }
+.tale-story p:first-of-type { font-weight: 700; }
 .tale-fig { margin: 18px 0 0; }
 .tale-fig img { display: block; max-height: 220px; max-width: 100%; margin: 0 auto; filter: drop-shadow(0 6px 5px rgba(12,38,60,.25)); }
 .pager { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
@@ -304,6 +308,7 @@ main.content { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; }
   .tale { grid-template-columns: 1fr; gap: 18px; }
   .tale-media .video-box { width: min(100%, calc((100vh - 120px) * 9 / 16)); margin: 0 auto; }
   .lead { font-size: 17px; }
+  .tale-story p { font-size: 16px; }
   .prose p, .prose li { font-size: 17px; }
 }
 @media (max-width: 640px) {
